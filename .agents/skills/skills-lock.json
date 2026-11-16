@@ -1,0 +1,119 @@
+{
+  "version": 2,
+  "skills": {
+    "amplicode-install": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/amplicode-install/SKILL.md",
+      "computedHash": "d4f381a44c29ae4e2a325ae6be9afa6f629372c1243ce9af8f8d28362cde6ff3"
+    },
+    "codefmt": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/codefmt/SKILL.md",
+      "computedHash": "ca8d2f11fa83455ad00b22e18367ae5bad77a677cfa5624b294c3a2860fccb2e"
+    },
+    "connekt-script-writer": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/connekt-script-writer/SKILL.md",
+      "computedHash": "8ea3579f77eb44eb9908ef65fdaa51729af9fe84e31a85d1d73b9e63d2248e63"
+    },
+    "coverage": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/coverage/SKILL.md",
+      "computedHash": "291c66e7a4bfc3e167a50b581d11c651f3ed16b828833fcd071c49d009783077"
+    },
+    "crud-rest-controller": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/crud-rest-controller/SKILL.md",
+      "computedHash": "e23c930a301543c96f5bfbd3bac6a1b57e607a32ed31bd39f0e44d270c86a287"
+    },
+    "dto-creator": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/dto-creator/SKILL.md",
+      "computedHash": "bd8a95d87f14cd4ea8497d37cadde4c504879386c00b7d0d99385c32235360f0"
+    },
+    "java-debug": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/java-debug/SKILL.md",
+      "computedHash": "05f7e9099d00576e662a6320cbbcb76eaefb6864f7e7cbaa3e150c249996cc89"
+    },
+    "kafka-configuration": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/kafka-configuration/SKILL.md",
+      "computedHash": "51651f1b96d7d450c8049fe6855999d8a064588d9d9320390f74c0b22b79ce5d"
+    },
+    "mapper-creator": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/mapper-creator/SKILL.md",
+      "computedHash": "30727e2e6278bbb631f863ebd06832db096ccc8f60903fd88f1d0e496796478b"
+    },
+    "mutation-testing": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/mutation-testing/SKILL.md",
+      "computedHash": "d1bcd6b2a59beb2714ffd8d4fc86755b97c38cfba49d29a1d21ec2cbc1a06b78"
+    },
+    "playwright-skill": {
+      "source": "lackeyjb/playwright-skill",
+      "sourceType": "github",
+      "skillPath": "skills/playwright-skill/SKILL.md",
+      "computedHash": "11a5e9fbfdb24afdd7f7a682711f68a9caa6be91b70d8531e578fdce438e0fad"
+    },
+    "run-tests": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/run-tests/SKILL.md",
+      "computedHash": "b507a29131dbd8278e6808637c1d2782cc1b01bd7f29e3715d7346ec80578c8e"
+    },
+    "spring-data-jdbc": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spring-data-jdbc/SKILL.md",
+      "computedHash": "7b3707f7df85d45d9de3dde427df95253cd41c724a50987decdfb273ebcf16cd"
+    },
+    "spring-data-jpa": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spring-data-jpa/SKILL.md",
+      "computedHash": "bfc0660d32dc238fd36631cb23f00afb84b99240abb6d0ca1a2e5c55b67c2d8b"
+    },
+    "spring-explore": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spring-explore/SKILL.md",
+      "computedHash": "f11c2ae5e3537c5d1b90d741c1f391f7d0f2984acb847c76c625fec4bcc80edc"
+    },
+    "spring-planning": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spring-planning/SKILL.md",
+      "computedHash": "dc54215354b6764754a4195c3dba3a9365d64b70710e6295c9e23a829c3f9eac"
+    },
+    "spring-security-configuration": {
+      "source": "Amplicode/spring-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spring-security-configuration/SKILL.md",
+      "computedHash": "cee04677145994d2599f9fed71e58d6596c1b6d1fbb1720f224d686469da2fe6"
+    },
+    "vercel-composition-patterns": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/composition-patterns/SKILL.md",
+      "computedHash": "f711ed8b16162eaa712abbcdbbae6c926f86c57e60127735fecc3ad0dd85b3fa"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "7991ed4fbecdac23f47c1a40c243e00a212a9e7f3604db93959b3ae11dffe299"
+    }
+  }
+}

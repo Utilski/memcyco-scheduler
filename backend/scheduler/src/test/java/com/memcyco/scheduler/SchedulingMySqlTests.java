@@ -30,7 +30,7 @@ class SchedulingMySqlTests extends SchedulingApiTests {
   @Test
   void flywayMigrationAndDueIndexExist() {
     assertEquals(
-        3,
+        5,
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
     assertEquals(
@@ -39,5 +39,35 @@ class SchedulingMySqlTests extends SchedulingApiTests {
             "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND"
                 + " table_name = 'schedulings' AND index_name = 'idx_schedulings_due'",
             Integer.class));
+  }
+
+  @Test
+  void packageMigrationUpdatesPersistedQuartzJobsWithoutChangingOtherJobClasses() throws Exception {
+    String insert =
+        "INSERT INTO QRTZ_JOB_DETAILS (SCHED_NAME, JOB_NAME, JOB_GROUP, JOB_CLASS_NAME, IS_DURABLE,"
+            + " IS_NONCONCURRENT, IS_UPDATE_DATA, REQUESTS_RECOVERY) VALUES ('migration-test', ?,"
+            + " 'test', ?, '1', '1', '0', '1')";
+    jdbc.update(insert, "target", "com.memcyco.scheduler.scheduling.QuartzExecutionJob");
+    jdbc.update(insert, "unrelated", "unrelated.Job");
+    try {
+      var resource =
+          new org.springframework.core.io.ClassPathResource(
+              "db/migration/V5__quartz_job_package.sql");
+      jdbc.execute(resource.getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+      assertEquals(
+          com.memcyco.scheduler.scheduling.quartz.QuartzExecutionJob.class.getName(),
+          jdbc.queryForObject(
+              "SELECT JOB_CLASS_NAME FROM QRTZ_JOB_DETAILS WHERE SCHED_NAME = 'migration-test' AND"
+                  + " JOB_NAME = 'target'",
+              String.class));
+      assertEquals(
+          "unrelated.Job",
+          jdbc.queryForObject(
+              "SELECT JOB_CLASS_NAME FROM QRTZ_JOB_DETAILS WHERE SCHED_NAME = 'migration-test' AND"
+                  + " JOB_NAME = 'unrelated'",
+              String.class));
+    } finally {
+      jdbc.update("DELETE FROM QRTZ_JOB_DETAILS WHERE SCHED_NAME = 'migration-test'");
+    }
   }
 }

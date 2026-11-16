@@ -1,0 +1,16 @@
+{
+  "name": "memcyco-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "node e2e/run.mts",
+    "test:e2e:existing": "playwright test --config e2e/playwright.config.ts",
+    "test:frontend": "npm --prefix frontend test",
+    "build:frontend": "npm --prefix frontend run build",
+    "typecheck:e2e": "frontend/node_modules/.bin/tsc -p e2e/tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "@types/node": "^24.19.2"
+  }
+}

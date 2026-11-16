@@ -1,7 +1,7 @@
 # Quartz scheduling and task execution
 
 Start from the repository root with `docker compose up`. The API listens on
-8080 and the Vite starter frontend on 5173. MySQL persists in `mysql-data`.
+8080 and the React scheduling dashboard on 5173. MySQL persists in `mysql-data`.
 Flyway owns the application and Quartz tables; Hibernate validates its mappings.
 Quartz's destructive automatic schema initialization is disabled.
 
@@ -141,7 +141,15 @@ identify failed synchronization/publication work by UUID and report worker outco
 
 ## CRUD and errors
 
-- `GET /api/schedulings`: array ordered by creation time and UUID.
+- `GET /api/schedulings`: paginated object `{ items, page, size, totalItems, totalPages }`.
+  Query parameters: zero-based `page` (default 0), `size` (default 20, range 1–100),
+  optional case-insensitive literal `search` across name/description, optional
+  `enabled=true|false`, `sort` and `direction=asc|desc` (default asc).
+  Sort fields: name, taskType, scheduleType, enabled, startsAt, nextRunAt,
+  createdAt (default), updatedAt. UUID breaks ties deterministically. Invalid
+  parameters return 400; pages beyond the end return empty items with totals.
+- `GET /api/schedulings/task-types`: names derived directly from the TaskType enum,
+  for example `["LOG", "DUMMY_EMAIL", "DB_QUERY"]`.
 - `GET /api/schedulings/{id}`: retrieve one schedule.
 - `PUT /api/schedulings/{id}`: replace writable fields.
 - `PATCH /api/schedulings/{id}`: update top-level fields; supplied `payload` and
@@ -156,8 +164,22 @@ records return `404`; conflicting updates return `409`, with
 headers on edits/deletion. Background state changes can also advance the version.
 
 Scheduling endpoints allow anonymous access. CORS permits localhost/127.0.0.1 on
-5173; override using comma-separated `CORS_ALLOWED_ORIGINS`. List-all still has
-O(n) response/memory cost; add pagination before large-scale use.
+5173; override using comma-separated `CORS_ALLOWED_ORIGINS`. Collection limits, filters, ordering and counts run in the database. V4 adds
+created_at/id and enabled/created_at/id indexes. Arbitrary substring searches
+and other sorts can still require scans or sorting; indexed pagination is not a
+claim of constant-time search/counts.
+
+## Package organization
+
+Within `com.memcyco.scheduler.scheduling`:
+
+- `api`: controllers, request/response DTOs and HTTP error handling.
+- `domain`: persisted scheduling state and task/schedule enums.
+- `persistence`: JPA repository and execution/synchronization SQL store.
+- `service`: transactional scheduling CRUD and validation.
+- `query`: validated collection parameters and JPA query specifications.
+- `execution`: dispatch, workers, publishing, execution status and retry policy.
+- `quartz`: native trigger construction, jobs and synchronization.
 
 ## Implementation boundaries
 
@@ -175,7 +197,8 @@ provides a UTC millisecond clock; tests override that Clock for deterministic ti
 ## Migrations and tests
 
 V1 is retained; V2 adds execution state and V3 installs Quartz's upstream MySQL
-schema without its DROP statements. No startup reset is performed. Local inspection
+schema without its DROP statements. V5 updates Quartz's persisted job class name for the package reorganization,
+leaving other job classes untouched. No startup reset is performed. Local inspection
 before this change found zero schedules, so no destructive reset was needed.
 Tests use isolated disposable databases, never the local application schema.
 
@@ -186,3 +209,12 @@ real MySQL/RabbitMQ execution, retries, duplicate delivery, cancellation, concur
 dispatch, clustered trigger acquisition, persisted-trigger replacement, and
 unroutable-publication retry. Container tests skip without Docker; inspect skipped
 counts before treating integration verification as complete.
+
+## Standalone image
+
+Build with `docker build -t memcyco-backend:local backend/scheduler` from the
+repository root. The multi-stage Dockerfile packages a bootable JAR without
+running tests and runs it as a non-root user on container port 8080. See
+[standalone service commands](../../docker/README.md) for dependency networking,
+credentials, persistence and health checks. The existing development Compose
+setup remains available.

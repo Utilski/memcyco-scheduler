@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.memcyco.scheduler.scheduling.SchedulingRepository;
+import com.memcyco.scheduler.scheduling.persistence.SchedulingRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -101,7 +101,9 @@ public class SchedulingApiTests {
 
   @Test
   void completeCrudPersistsAndReturnsExpectedStatuses() throws Exception {
-    mvc.perform(get("/api/schedulings")).andExpect(status().isOk()).andExpect(content().json("[]"));
+    mvc.perform(get("/api/schedulings"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(0));
     MvcResult created = create(valid());
     String path = location(created);
     UUID id = UUID.fromString(path.substring(path.lastIndexOf('/') + 1));
@@ -126,7 +128,7 @@ public class SchedulingApiTests {
                 .content("{\"description\":\"Patched\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.description").value("Patched"));
-    mvc.perform(get("/api/schedulings")).andExpect(jsonPath("$.length()").value(1));
+    mvc.perform(get("/api/schedulings")).andExpect(jsonPath("$.items.length()").value(1));
     mvc.perform(delete(path)).andExpect(status().isNoContent());
     assertFalse(repository.existsById(id));
     mvc.perform(get(path))
@@ -320,5 +322,90 @@ public class SchedulingApiTests {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.nextRunAt").doesNotExist())
         .andExpect(jsonPath("$.scheduleConfig.interval").value(Integer.MAX_VALUE));
+  }
+
+  @Test
+  void taskTypesMatchBackendEnum() throws Exception {
+    mvc.perform(get("/api/schedulings/task-types"))
+        .andExpect(status().isOk())
+        .andExpect(
+            content()
+                .json(
+                    mapper.writeValueAsString(
+                        com.memcyco.scheduler.scheduling.domain.TaskType.values())));
+  }
+
+  @Test
+  void collectionPaginatesSortsAndCountsBeforeLimiting() throws Exception {
+    for (String name : new String[] {"Charlie", "Alpha", "Bravo"}) {
+      Map<String, Object> input = valid();
+      input.put("name", name);
+      create(input);
+    }
+    mvc.perform(get("/api/schedulings?page=1&size=2&sort=name&direction=asc"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(1))
+        .andExpect(jsonPath("$.items[0].name").value("Charlie"))
+        .andExpect(jsonPath("$.totalItems").value(3))
+        .andExpect(jsonPath("$.totalPages").value(2))
+        .andExpect(jsonPath("$.page").value(1))
+        .andExpect(jsonPath("$.size").value(2));
+    mvc.perform(get("/api/schedulings?page=99&size=2"))
+        .andExpect(jsonPath("$.items.length()").value(0))
+        .andExpect(jsonPath("$.totalItems").value(3));
+    mvc.perform(get("/api/schedulings?page=2147483647&size=100"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(0));
+    mvc.perform(get("/api/schedulings?sort=name&direction=desc&size=1"))
+        .andExpect(jsonPath("$.items[0].name").value("Charlie"));
+  }
+
+  @Test
+  void collectionSearchIsLiteralCaseInsensitiveAndCombinesWithEnabledFilter() throws Exception {
+    Map<String, Object> input = valid();
+    input.put("name", "100%_literal!");
+    input.put("description", "Search Description");
+    create(input);
+    input.put("name", "100xxliteral!");
+    input.put("enabled", false);
+    create(input);
+    mvc.perform(get("/api/schedulings").param("search", "%_literal!"))
+        .andExpect(jsonPath("$.totalItems").value(1))
+        .andExpect(jsonPath("$.items[0].name").value("100%_literal!"));
+    mvc.perform(get("/api/schedulings").param("search", "DESCRIPTION").param("enabled", "false"))
+        .andExpect(jsonPath("$.totalItems").value(1))
+        .andExpect(jsonPath("$.items[0].enabled").value(false));
+  }
+
+  @Test
+  void invalidCollectionParametersReturnBadRequest() throws Exception {
+    for (String parameters :
+        new String[] {
+          "page=-1",
+          "size=0",
+          "size=101",
+          "page=no",
+          "sort=payload",
+          "direction=north",
+          "enabled=yes"
+        }) {
+      mvc.perform(get("/api/schedulings?" + parameters))
+          .andExpect(status().isBadRequest())
+          .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
+    }
+  }
+
+  @Test
+  void defaultOrderingUsesUuidToBreakEqualCreationTimes() throws Exception {
+    java.util.List<String> ids = new java.util.ArrayList<>();
+    for (int index = 0; index < 3; index++) {
+      String path = location(create(valid()));
+      ids.add(path.substring(path.lastIndexOf('/') + 1));
+    }
+    ids.sort(String::compareTo);
+    for (int page = 0; page < 3; page++) {
+      mvc.perform(get("/api/schedulings").param("size", "1").param("page", Integer.toString(page)))
+          .andExpect(jsonPath("$.items[0].id").value(ids.get(page)));
+    }
   }
 }

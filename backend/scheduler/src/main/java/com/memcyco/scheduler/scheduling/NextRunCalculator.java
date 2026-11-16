@@ -21,6 +21,9 @@ public class NextRunCalculator {
   // One Gregorian cycle plus boundary candidates bounds searches for impossible dates.
   private static final int MAX_CALENDAR_SEARCH_ATTEMPTS = 4802;
 
+  private static final Instant LAST_SUPPORTED_INSTANT =
+      Instant.parse("9999-12-31T23:59:59.999999Z");
+
   public Instant next(SchedulingRequest request, Instant now) {
     if (!request.enabled()) {
       return null;
@@ -59,11 +62,29 @@ public class NextRunCalculator {
     if (earliestLocalTime.isBefore(request.startsAt())) {
       earliestLocalTime = request.startsAt();
     }
+    Instant searchEndsAt = LAST_SUPPORTED_INSTANT;
+    if (request.endsAt() != null && request.endsAt().isBefore(searchEndsAt)) {
+      searchEndsAt = request.endsAt();
+    }
+    if (now.isAfter(searchEndsAt)) {
+      return null;
+    }
     LocalDateTime candidate = expression.next(earliestLocalTime.minusNanos(1));
     while (candidate != null) {
+      // Even the largest possible offset cannot put this candidate within the bound.
+      // This also stops searches whose every occurrence falls inside a DST gap.
+      if (candidate.toInstant(ZoneOffset.MAX).isAfter(searchEndsAt)) {
+        return null;
+      }
       Instant instant = resolve(candidate, timeZone);
-      if (instant != null && !instant.isBefore(now)) {
-        return instant;
+      if (instant == null) {
+        // Skip the entire gap, including cron rules matching every missing second.
+        LocalDateTime gapEndsAt = timeZone.getRules().getTransition(candidate).getDateTimeAfter();
+        candidate = expression.next(gapEndsAt.minusNanos(1));
+        continue;
+      }
+      if (!instant.isBefore(now)) {
+        return instant.isAfter(searchEndsAt) ? null : instant;
       }
       candidate = expression.next(candidate);
     }
@@ -124,6 +145,11 @@ public class NextRunCalculator {
     // Gregorian dates repeat every 400 years (4800 months). This also bounds impossible rules.
     for (int attempt = 0; attempt < MAX_CALENDAR_SEARCH_ATTEMPTS; attempt++, occurrenceIndex++) {
       long calendarOffset = Math.multiplyExact(occurrenceIndex, interval);
+      // Local year 10000 can still map to UTC year 9999 with a positive offset.
+      if (frequency == SchedulingRules.Frequency.YEARLY
+          && calendarOffset > 10000L - startsAt.getYear()) {
+        return null;
+      }
       try {
         if (frequency == SchedulingRules.Frequency.WEEKLY) {
           Instant weeklyOccurrence =

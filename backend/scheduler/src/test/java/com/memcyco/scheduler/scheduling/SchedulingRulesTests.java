@@ -1,6 +1,6 @@
 package com.memcyco.scheduler.scheduling;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;

@@ -1,21 +1,22 @@
 package com.memcyco.scheduler.scheduling;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 class NextRunCalculatorTests {
 
   private final NextRunCalculator calculator = new NextRunCalculator();
 
-  private SchedulingRequest rule(String start, String zone, String frequency, int interval) {
+  private SchedulingRequest rule(String start, String timeZone, String frequency, int interval) {
     return request(
         start,
-        zone,
+        timeZone,
         ScheduleType.RECURRING,
         Map.of("frequency", frequency, "interval", interval),
         null,
@@ -24,9 +25,9 @@ class NextRunCalculatorTests {
 
   private SchedulingRequest request(
       String start,
-      String zone,
+      String timeZone,
       ScheduleType type,
-      Map<String, Object> config,
+      Map<String, Object> scheduleConfig,
       Instant end,
       boolean enabled) {
     return new SchedulingRequest(
@@ -35,9 +36,9 @@ class NextRunCalculatorTests {
         TaskType.LOG,
         Map.of("message", "hello"),
         type,
-        zone,
+        timeZone,
         LocalDateTime.parse(start),
-        config,
+        scheduleConfig,
         end,
         null,
         enabled);
@@ -51,10 +52,10 @@ class NextRunCalculatorTests {
 
   @Test
   void oneTimeIsInclusiveAndOverdueRunsOnceNow() {
-    SchedulingRequest r =
+    SchedulingRequest request =
         request("2026-01-01T09:00", "UTC", ScheduleType.ONE_TIME, Map.of(), null, true);
-    expect("2026-01-01T09:00:00Z", r, "2026-01-01T09:00:00Z");
-    expect("2026-01-02T00:00:00Z", r, "2026-01-02T00:00:00Z");
+    expect("2026-01-01T09:00:00Z", request, "2026-01-01T09:00:00Z");
+    expect("2026-01-02T00:00:00Z", request, "2026-01-02T00:00:00Z");
     expect(
         null,
         request("2026-01-01T09:00", "UTC", ScheduleType.ONE_TIME, Map.of(), null, false),
@@ -79,7 +80,7 @@ class NextRunCalculatorTests {
 
   @Test
   void weeklyUsesMondayAnchoredWeeksAndChronologicalWeekdays() {
-    SchedulingRequest r =
+    SchedulingRequest request =
         request(
             "2026-01-07T09:00",
             "UTC",
@@ -87,8 +88,8 @@ class NextRunCalculatorTests {
             Map.of("frequency", "WEEKLY", "interval", 2, "weekdays", List.of("FRIDAY", "MONDAY")),
             null,
             true);
-    expect("2026-01-09T09:00:00Z", r, "2026-01-01T00:00:00Z");
-    expect("2026-01-19T09:00:00Z", r, "2026-01-10T00:00:00Z");
+    expect("2026-01-09T09:00:00Z", request, "2026-01-01T00:00:00Z");
+    expect("2026-01-19T09:00:00Z", request, "2026-01-10T00:00:00Z");
   }
 
   @Test
@@ -128,7 +129,7 @@ class NextRunCalculatorTests {
 
   @Test
   void cronIsInclusiveAndUsesTheConfiguredZone() {
-    SchedulingRequest r =
+    SchedulingRequest request =
         request(
             "2026-01-01T00:00",
             "Asia/Jerusalem",
@@ -136,8 +137,8 @@ class NextRunCalculatorTests {
             Map.of("expression", "0 0 9 * * *"),
             null,
             true);
-    expect("2026-01-01T07:00:00Z", r, "2026-01-01T07:00:00Z");
-    expect("2026-01-02T07:00:00Z", r, "2026-01-01T07:00:00.000001Z");
+    expect("2026-01-01T07:00:00Z", request, "2026-01-01T07:00:00Z");
+    expect("2026-01-02T07:00:00Z", request, "2026-01-01T07:00:00.000001Z");
   }
 
   @Test
@@ -184,5 +185,62 @@ class NextRunCalculatorTests {
             null,
             true),
         "2026-01-01T00:00:00Z");
+  }
+
+  @Test
+  @Timeout(10)
+  void cronStopsAtEndDateWhenEveryOccurrenceFallsInADstGap() {
+    SchedulingRequest request =
+        request(
+            "2026-01-01T00:00",
+            "America/New_York",
+            ScheduleType.CRON,
+            Map.of("expression", "0 30 2 ? MAR SUN#2"),
+            Instant.parse("2026-12-31T23:59:59Z"),
+            true);
+    expect(null, request, "2026-01-01T00:00:00Z");
+  }
+
+  @Test
+  @Timeout(10)
+  void cronStopsAtSupportedYearWhenEveryOccurrenceFallsInADstGap() {
+    SchedulingRequest request =
+        request(
+            "2026-01-01T00:00",
+            "America/New_York",
+            ScheduleType.CRON,
+            Map.of("expression", "* * 2 ? MAR SUN#2"),
+            null,
+            true);
+    expect(null, request, "2026-01-01T00:00:00Z");
+  }
+
+  @Test
+  void cronRespectsUtcBoundsForLocalDatesInDifferentYears() {
+    SchedulingRequest request =
+        request(
+            "9999-12-31T00:00",
+            "Pacific/Kiritimati",
+            ScheduleType.CRON,
+            Map.of("expression", "0 0 0 1 JAN *"),
+            null,
+            true);
+    // Local January 1, 10000 still falls in supported UTC year 9999.
+    expect("9999-12-31T10:00:00Z", request, "9999-12-31T00:00:00Z");
+    expect(null, request, "9999-12-31T10:00:00.000001Z");
+  }
+
+  @Test
+  void largeYearlyIntervalsHaveNoNextRunWithoutOverflowing() {
+    SchedulingRequest request = rule("2024-02-29T09:00", "UTC", "YEARLY", Integer.MAX_VALUE);
+    expect("2024-02-29T09:00:00Z", request, "2024-01-01T00:00:00Z");
+    expect(null, request, "2026-01-01T00:00:00Z");
+  }
+
+  @Test
+  void yearlyRuleCanResolveLocalYear10000WithinSupportedUtcYear() {
+    SchedulingRequest request = rule("9996-01-01T00:00", "Pacific/Kiritimati", "YEARLY", 4);
+    expect("9999-12-31T10:00:00Z", request, "9999-12-31T00:00:00Z");
+    expect(null, request, "9999-12-31T10:00:00.000001Z");
   }
 }

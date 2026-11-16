@@ -1,9 +1,20 @@
 package com.memcyco.scheduler;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.memcyco.scheduler.scheduling.SchedulingRepository;
 import java.time.Clock;
@@ -294,5 +305,18 @@ public class SchedulingApiTests {
                 .header("Access-Control-Request-Method", "POST"))
         .andExpect(status().isForbidden())
         .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+  }
+
+  @Test
+  void acceptsLargeYearlyIntervalWithNoSupportedNextRun() throws Exception {
+    Map<String, Object> input = valid();
+    input.put("startsAt", "2024-02-29T09:00:00");
+    input.put("scheduleType", "RECURRING");
+    input.put("scheduleConfig", Map.of("frequency", "YEARLY", "interval", Integer.MAX_VALUE));
+    String path = location(create(input));
+    mvc.perform(get(path))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.nextRunAt").doesNotExist())
+        .andExpect(jsonPath("$.scheduleConfig.interval").value(Integer.MAX_VALUE));
   }
 }

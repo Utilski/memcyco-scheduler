@@ -72,6 +72,8 @@ initial anchor is in such a gap also has no occurrence; choose an existing local
 
 Cron accepts exactly six Spring cron fields: second, minute, hour, day of month, month, day of week.
 Five-field expressions and macros are rejected. Impossible calendar rules may have no next run.
+Cron searches stop at the end bound or MySQL's maximum supported UTC timestamp;
+DST gaps are skipped as a whole, including rules matching every missing second.
 
 `startsAt` and `endsAt` are inclusive. `endsAt` cannot precede the start.
 `maxOccurrences` is a positive limit for recurring/cron schedules only.

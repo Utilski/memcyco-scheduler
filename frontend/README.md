@@ -1,75 +1,59 @@
-# React + TypeScript + Vite
+# Scheduling dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Dark React/TypeScript dashboard for the Spring scheduling API. Supports guided
+create/edit dialogs, complete schedule details, enable/disable and delete
+confirmations, backend-driven task types, and server-side pagination/search/sort.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+From this directory: `npm ci` then `npm run dev`. Start the backend/dependencies
+from the repository root with `docker compose up`. The UI defaults to
+`http://localhost:8080`; override `VITE_API_BASE_URL` in the frontend environment
+before starting Vite/building (see `.env.example`). This variable is public.
 
-## React Compiler
+## Checks
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `npm run build`: strict TypeScript and production bundle.
+- `npm run lint`: ESLint including React hooks checks.
+- `npm test`: Vitest/Testing Library unit and component tests.
+- `npm run format`: format source with Prettier.
+- Whole-project E2E tests run from the **repository root**: `npm run test:e2e`.
+  See `../e2e/README.md`; they use isolated real services, not mocked responses.
 
-## Expanding the ESLint configuration
+## Structure
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- `components/atoms`: controls and badges.
+- `components/molecules`: fields, accessible dialog shell and pagination.
+- `components/templates`: workspace layout.
+- `features/schedulings/api`: validated HTTP client and API tests.
+- `features/schedulings/model`: domain schemas, discriminated types and form types.
+- `features/schedulings/hooks`: remote query and action-dialog state orchestration.
+- `features/schedulings/utils`: pure form, date-validation and formatting helpers.
+- `features/schedulings/components`: table/form/dialog organisms and feature UI.
+- `features/schedulings/pages`: dashboard composition.
+- `hooks`: generic reusable React hooks; `lib`: shared error presentation.
+- `test`: environment setup and shared fixtures.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+TanStack Query owns remote data and invalidation. Collection keys include every
+server-side query parameter. Requests are cancellable, results refresh every ten
+seconds while visible, and previous pages remain visible with an updating state.
+Dialogs fetch a fresh record/ETag. Open form drafts do not follow list refreshes;
+stale edits show a conflict and allow explicit reload rather than overwriting.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Task select options come from `GET /api/schedulings/task-types`. Unknown future
+types remain viewable but cannot be edited until a matching form adapter exists.
+Zod validates API data and request construction; server validation remains
+responsible for Quartz cron syntax and timezone-aware time bounds.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Starts are local times in the chosen IANA timezone. Optional end dates are
+explicitly UTC; utilities preserve milliseconds without parsing local starts in
+the browser timezone. Counts/version values must be safe JavaScript integers.
+A null next run is never labeled as proof of execution success.
 
-```
+## Standalone image
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+Build from the repository root with
+`docker build --build-arg VITE_API_BASE_URL=http://localhost:18080 -t memcyco-frontend:local frontend`.
+The runtime is unprivileged Nginx on container port 8080, serving the production
+bundle with SPA fallback. The API URL is public build-time configuration, not a
+runtime environment override. See [standalone service commands](../docker/README.md).

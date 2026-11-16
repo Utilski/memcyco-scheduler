@@ -1,0 +1,20 @@
+CREATE TABLE schedulings (
+    id BINARY(16) NOT NULL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    task_type VARCHAR(32) NOT NULL,
+    payload JSON NOT NULL,
+    schedule_type VARCHAR(32) NOT NULL,
+    time_zone VARCHAR(128) NOT NULL,
+    starts_at DATETIME(6) NOT NULL,
+    schedule_config JSON NOT NULL,
+    ends_at DATETIME(6),
+    max_occurrences BIGINT,
+    enabled BOOLEAN NOT NULL,
+    next_run_at DATETIME(6),
+    dispatched_count BIGINT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    version BIGINT NOT NULL,
+    INDEX idx_schedulings_due (enabled, next_run_at)
+);

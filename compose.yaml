@@ -14,9 +14,13 @@ services:
     command: ['sh', './gradlew', '--no-daemon', 'bootRun']
     volumes:
       - ./backend/scheduler:/app
+      - backend-build:/app/build
+      - backend-project-cache:/app/.gradle
       - gradle-cache:/root/.gradle
     environment:
       SPRING_DOCKER_COMPOSE_ENABLED: 'false'
+      SCHEDULER_ENABLED: '${SCHEDULER_ENABLED:-true}'
+      WORKER_ENABLED: '${WORKER_ENABLED:-true}'
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/mydatabase
       SPRING_DATASOURCE_USERNAME: myuser
       SPRING_DATASOURCE_PASSWORD: secret
@@ -39,7 +43,9 @@ services:
       - 'MYSQL_ROOT_PASSWORD=verysecret'
       - 'MYSQL_USER=myuser'
     ports:
-      - '3306'
+      - '3306:3306'
+    volumes:
+      - mysql-data:/var/lib/mysql
     healthcheck:
       test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
       interval: 10s
@@ -61,5 +67,8 @@ services:
       start_period: 30s
 
 volumes:
+  backend-build:
+  backend-project-cache:
+  mysql-data:
   frontend-node-modules:
   gradle-cache:

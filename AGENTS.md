@@ -1,5 +1,9 @@
 # Project working agreements
 
+- Write readable Java with descriptive names. Avoid unnecessary abbreviations
+  and single-letter variables. Use braces for conditionals, explicit imports,
+  and focused methods for distinct validation and scheduling rules.
+
 - When the user agrees to implement a plan, save the agreed plan in
   `docs/plans/` before starting implementation. Use a dated, descriptive filename.
 - Record scope, acceptance criteria, implementation steps, validation, and deferred

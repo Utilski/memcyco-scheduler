@@ -24,24 +24,24 @@ public record SchedulingResponse(
     Instant updatedAt,
     Long version) {
 
-  static SchedulingResponse from(Scheduling s) {
+  static SchedulingResponse from(Scheduling scheduling) {
     return new SchedulingResponse(
-        s.getId(),
-        s.getName(),
-        s.getDescription(),
-        s.getTaskType(),
-        s.getPayload(),
-        s.getScheduleType(),
-        s.getTimeZone(),
-        s.getStartsAt(),
-        s.getScheduleConfig(),
-        s.getEndsAt(),
-        s.getMaxOccurrences(),
-        s.isEnabled(),
-        s.getNextRunAt(),
-        s.getDispatchedCount(),
-        s.getCreatedAt(),
-        s.getUpdatedAt(),
-        s.getVersion());
+        scheduling.getId(),
+        scheduling.getName(),
+        scheduling.getDescription(),
+        scheduling.getTaskType(),
+        scheduling.getPayload(),
+        scheduling.getScheduleType(),
+        scheduling.getTimeZone(),
+        scheduling.getStartsAt(),
+        scheduling.getScheduleConfig(),
+        scheduling.getEndsAt(),
+        scheduling.getMaxOccurrences(),
+        scheduling.isEnabled(),
+        scheduling.getNextRunAt(),
+        scheduling.getDispatchedCount(),
+        scheduling.getCreatedAt(),
+        scheduling.getUpdatedAt(),
+        scheduling.getVersion());
   }
 }

@@ -56,3 +56,14 @@ Due-task claiming and dispatch, RabbitMQ publishing, task consumers/execution,
 dispatch counter advancement, catch-up processing, and the scheduling frontend.
 No transactional outbox design was recovered from the original plan; it was a
 later recommendation and is not part of this phase.
+
+## Readability review
+
+On 2026-11-16, the user requested descriptive naming and conventional, readable
+Java. Replaced single-letter variables, added conditional braces and explicit
+imports, and separated recurrence calculations and validation into focused
+methods. Added the readability agreement to `AGENTS.md`.
+
+Verification after refactoring: all 36 tests passed, including all 11 real
+MySQL tests, with zero failures, errors, or skips. Log:
+`/tmp/memcyco-readability-tests.log`.

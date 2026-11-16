@@ -17,100 +17,108 @@ import org.springframework.web.server.ResponseStatusException;
 @Transactional(readOnly = true)
 public class SchedulingService {
 
-  private final SchedulingRepository repository;
-  private final SchedulingRules rules;
-  private final NextRunCalculator calculator;
+  private final SchedulingRepository schedulingRepository;
+  private final SchedulingRules schedulingRules;
+  private final NextRunCalculator nextRunCalculator;
   private final Clock clock;
 
   public SchedulingService(
-      SchedulingRepository repository,
-      SchedulingRules rules,
-      NextRunCalculator calculator,
+      SchedulingRepository schedulingRepository,
+      SchedulingRules schedulingRules,
+      NextRunCalculator nextRunCalculator,
       Clock clock) {
-    this.repository = repository;
-    this.rules = rules;
-    this.calculator = calculator;
+    this.schedulingRepository = schedulingRepository;
+    this.schedulingRules = schedulingRules;
+    this.nextRunCalculator = nextRunCalculator;
     this.clock = clock;
   }
 
   public List<SchedulingResponse> list() {
-    return repository.findAll(Sort.by("createdAt", "id")).stream()
+    return schedulingRepository.findAll(Sort.by("createdAt", "id")).stream()
         .map(SchedulingResponse::from)
         .toList();
   }
 
   public SchedulingResponse get(UUID id) {
-    return SchedulingResponse.from(find(id));
+    return SchedulingResponse.from(findScheduling(id));
   }
 
   @Transactional
   public SchedulingResponse create(SchedulingRequest request) {
-    rules.validate(request);
+    schedulingRules.validate(request);
     Instant now = now();
     Scheduling scheduling = new Scheduling();
-    apply(scheduling, request);
+    applyRequest(scheduling, request);
     scheduling.setCreatedAt(now);
     scheduling.setUpdatedAt(now);
-    scheduling.setNextRunAt(calculator.next(request, now));
-    return SchedulingResponse.from(repository.saveAndFlush(scheduling));
+    scheduling.setNextRunAt(nextRunCalculator.next(request, now));
+    return SchedulingResponse.from(schedulingRepository.saveAndFlush(scheduling));
   }
 
   @Transactional
   public SchedulingResponse replace(UUID id, SchedulingRequest request, Long expectedVersion) {
-    return update(find(id), request, expectedVersion);
+    return update(findScheduling(id), request, expectedVersion);
   }
 
   @Transactional
   public SchedulingResponse patch(UUID id, Map<String, Object> patch, Long expectedVersion) {
-    SchedulingRequest.checkFields(patch);
-    Scheduling scheduling = find(id);
-    Map<String, Object> merged = SchedulingRequest.from(scheduling).toMap();
-    merged.putAll(patch);
-    return update(scheduling, SchedulingRequest.parse(merged), expectedVersion);
+    SchedulingRequest.validateWritableFields(patch);
+    Scheduling scheduling = findScheduling(id);
+    Map<String, Object> mergedFields = SchedulingRequest.from(scheduling).toMap();
+    mergedFields.putAll(patch);
+    return update(scheduling, SchedulingRequest.parse(mergedFields), expectedVersion);
   }
 
   @Transactional
   public void delete(UUID id, Long expectedVersion) {
-    Scheduling scheduling = find(id);
-    checkVersion(scheduling, expectedVersion);
-    repository.delete(scheduling);
-    repository.flush();
+    Scheduling scheduling = findScheduling(id);
+    checkExpectedVersion(scheduling, expectedVersion);
+    schedulingRepository.delete(scheduling);
+    schedulingRepository.flush();
   }
 
-  private SchedulingResponse update(Scheduling s, SchedulingRequest request, Long expectedVersion) {
-    checkVersion(s, expectedVersion);
-    rules.validate(request);
-    SchedulingRequest previous = SchedulingRequest.from(s);
-    boolean timingChanged =
-        previous.scheduleType() != request.scheduleType()
-            || !previous.timeZone().equals(request.timeZone())
-            || !previous.startsAt().equals(request.startsAt())
-            || !previous.scheduleConfig().equals(request.scheduleConfig())
-            || !Objects.equals(previous.endsAt(), request.endsAt())
-            || !Objects.equals(previous.maxOccurrences(), request.maxOccurrences());
-    apply(s, request);
+  private SchedulingResponse update(
+      Scheduling scheduling, SchedulingRequest request, Long expectedVersion) {
+    checkExpectedVersion(scheduling, expectedVersion);
+    schedulingRules.validate(request);
+    SchedulingRequest previousRequest = SchedulingRequest.from(scheduling);
+    boolean timingChanged = hasTimingChanged(previousRequest, request);
+    applyRequest(scheduling, request);
     Instant now = now();
-    s.setUpdatedAt(now);
-    if (timingChanged) s.setDispatchedCount(0);
-    if (!request.enabled()) {
-      s.setNextRunAt(null);
-    } else if (request.maxOccurrences() != null
-        && s.getDispatchedCount() >= request.maxOccurrences()) {
-      s.setNextRunAt(null);
-    } else if (timingChanged || !previous.enabled()) {
-      s.setNextRunAt(calculator.next(request, now));
+    scheduling.setUpdatedAt(now);
+    if (timingChanged) {
+      scheduling.setDispatchedCount(0);
     }
-    return SchedulingResponse.from(repository.saveAndFlush(s));
+    if (!request.enabled()) {
+      scheduling.setNextRunAt(null);
+    } else if (request.maxOccurrences() != null
+        && scheduling.getDispatchedCount() >= request.maxOccurrences()) {
+      scheduling.setNextRunAt(null);
+    } else if (timingChanged || !previousRequest.enabled()) {
+      scheduling.setNextRunAt(nextRunCalculator.next(request, now));
+    }
+    return SchedulingResponse.from(schedulingRepository.saveAndFlush(scheduling));
   }
 
-  private static void checkVersion(Scheduling s, Long expectedVersion) {
-    if (expectedVersion != null && !expectedVersion.equals(s.getVersion()))
+  private static boolean hasTimingChanged(
+      SchedulingRequest previousRequest, SchedulingRequest request) {
+    return previousRequest.scheduleType() != request.scheduleType()
+        || !previousRequest.timeZone().equals(request.timeZone())
+        || !previousRequest.startsAt().equals(request.startsAt())
+        || !previousRequest.scheduleConfig().equals(request.scheduleConfig())
+        || !Objects.equals(previousRequest.endsAt(), request.endsAt())
+        || !Objects.equals(previousRequest.maxOccurrences(), request.maxOccurrences());
+  }
+
+  private static void checkExpectedVersion(Scheduling scheduling, Long expectedVersion) {
+    if (expectedVersion != null && !expectedVersion.equals(scheduling.getVersion())) {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT, "Scheduling was changed by another request");
+    }
   }
 
-  private Scheduling find(UUID id) {
-    return repository
+  private Scheduling findScheduling(UUID id) {
+    return schedulingRepository
         .findById(id)
         .orElseThrow(
             () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Scheduling not found"));
@@ -120,17 +128,17 @@ public class SchedulingService {
     return clock.instant().truncatedTo(ChronoUnit.MICROS);
   }
 
-  private static void apply(Scheduling s, SchedulingRequest r) {
-    s.setName(r.name());
-    s.setDescription(r.description());
-    s.setTaskType(r.taskType());
-    s.setPayload(r.payload());
-    s.setScheduleType(r.scheduleType());
-    s.setTimeZone(r.timeZone());
-    s.setStartsAt(r.startsAt());
-    s.setScheduleConfig(r.scheduleConfig());
-    s.setEndsAt(r.endsAt());
-    s.setMaxOccurrences(r.maxOccurrences());
-    s.setEnabled(r.enabled());
+  private static void applyRequest(Scheduling scheduling, SchedulingRequest request) {
+    scheduling.setName(request.name());
+    scheduling.setDescription(request.description());
+    scheduling.setTaskType(request.taskType());
+    scheduling.setPayload(request.payload());
+    scheduling.setScheduleType(request.scheduleType());
+    scheduling.setTimeZone(request.timeZone());
+    scheduling.setStartsAt(request.startsAt());
+    scheduling.setScheduleConfig(request.scheduleConfig());
+    scheduling.setEndsAt(request.endsAt());
+    scheduling.setMaxOccurrences(request.maxOccurrences());
+    scheduling.setEnabled(request.enabled());
   }
 }

@@ -20,7 +20,7 @@ public record SchedulingRequest(
     Long maxOccurrences,
     boolean enabled) {
 
-  static final Set<String> FIELDS =
+  static final Set<String> WRITABLE_FIELDS =
       Set.of(
           "name",
           "description",
@@ -35,58 +35,69 @@ public record SchedulingRequest(
           "enabled");
 
   static SchedulingRequest parse(Map<String, Object> input) {
-    checkFields(input);
+    validateWritableFields(input);
     Object enabled = input.getOrDefault("enabled", true);
-    if (!(enabled instanceof Boolean))
+    if (!(enabled instanceof Boolean)) {
       throw new IllegalArgumentException("enabled must be a boolean");
+    }
     return new SchedulingRequest(
-        text(input, "name", true),
-        text(input, "description", false),
-        TaskType.valueOf(text(input, "taskType", true)),
-        object(input, "payload"),
-        ScheduleType.valueOf(text(input, "scheduleType", true)),
-        text(input, "timeZone", true),
-        LocalDateTime.parse(text(input, "startsAt", true)),
-        object(input, "scheduleConfig"),
-        input.get("endsAt") == null ? null : Instant.parse(text(input, "endsAt", true)),
+        readText(input, "name", true),
+        readText(input, "description", false),
+        TaskType.valueOf(readText(input, "taskType", true)),
+        readObject(input, "payload"),
+        ScheduleType.valueOf(readText(input, "scheduleType", true)),
+        readText(input, "timeZone", true),
+        LocalDateTime.parse(readText(input, "startsAt", true)),
+        readObject(input, "scheduleConfig"),
+        input.get("endsAt") == null ? null : Instant.parse(readText(input, "endsAt", true)),
         input.get("maxOccurrences") == null
             ? null
-            : positiveInteger(input.get("maxOccurrences"), "maxOccurrences"),
+            : readPositiveInteger(input.get("maxOccurrences"), "maxOccurrences"),
         (Boolean) enabled);
   }
 
-  static void checkFields(Map<String, Object> input) {
-    if (input == null) throw new IllegalArgumentException("Request must be a JSON object");
+  static void validateWritableFields(Map<String, Object> input) {
+    if (input == null) {
+      throw new IllegalArgumentException("Request must be a JSON object");
+    }
     for (String field : input.keySet()) {
-      if (!FIELDS.contains(field))
+      if (!WRITABLE_FIELDS.contains(field)) {
         throw new IllegalArgumentException("Unknown or read-only field: " + field);
+      }
     }
   }
 
-  static String text(Map<String, Object> input, String key, boolean required) {
-    Object value = input.get(key);
-    if (value == null && !required) return null;
-    if (!(value instanceof String text) || (required && text.isBlank()))
+  static String readText(Map<String, Object> input, String fieldName, boolean required) {
+    Object value = input.get(fieldName);
+    if (value == null && !required) {
+      return null;
+    }
+    if (!(value instanceof String text) || (required && text.isBlank())) {
       throw new IllegalArgumentException(
-          key + " must be " + (required ? "a nonblank" : "a") + " string");
+          fieldName + " must be " + (required ? "a nonblank" : "a") + " string");
+    }
     return (String) value;
   }
 
   @SuppressWarnings("unchecked")
-  static Map<String, Object> object(Map<String, Object> input, String key) {
-    if (!(input.get(key) instanceof Map<?, ?>))
-      throw new IllegalArgumentException(key + " must be a JSON object");
-    return new LinkedHashMap<>((Map<String, Object>) input.get(key));
+  static Map<String, Object> readObject(Map<String, Object> input, String fieldName) {
+    if (!(input.get(fieldName) instanceof Map<?, ?>)) {
+      throw new IllegalArgumentException(fieldName + " must be a JSON object");
+    }
+    return new LinkedHashMap<>((Map<String, Object>) input.get(fieldName));
   }
 
-  static long positiveInteger(Object value, String field) {
-    if (!(value instanceof Number))
+  static long readPositiveInteger(Object value, String field) {
+    if (!(value instanceof Number)) {
       throw new IllegalArgumentException(field + " must be a positive integer");
+    }
     try {
       long result = new BigDecimal(value.toString()).longValueExact();
-      if (result <= 0) throw new ArithmeticException();
+      if (result <= 0) {
+        throw new ArithmeticException();
+      }
       return result;
-    } catch (ArithmeticException | NumberFormatException ex) {
+    } catch (ArithmeticException | NumberFormatException exception) {
       throw new IllegalArgumentException(field + " must be a positive integer");
     }
   }
@@ -107,18 +118,18 @@ public record SchedulingRequest(
     return result;
   }
 
-  static SchedulingRequest from(Scheduling s) {
+  static SchedulingRequest from(Scheduling scheduling) {
     return new SchedulingRequest(
-        s.getName(),
-        s.getDescription(),
-        s.getTaskType(),
-        s.getPayload(),
-        s.getScheduleType(),
-        s.getTimeZone(),
-        s.getStartsAt(),
-        s.getScheduleConfig(),
-        s.getEndsAt(),
-        s.getMaxOccurrences(),
-        s.isEnabled());
+        scheduling.getName(),
+        scheduling.getDescription(),
+        scheduling.getTaskType(),
+        scheduling.getPayload(),
+        scheduling.getScheduleType(),
+        scheduling.getTimeZone(),
+        scheduling.getStartsAt(),
+        scheduling.getScheduleConfig(),
+        scheduling.getEndsAt(),
+        scheduling.getMaxOccurrences(),
+        scheduling.isEnabled());
   }
 }

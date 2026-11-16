@@ -2,7 +2,6 @@ package com.memcyco.scheduler.scheduling;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,18 +18,21 @@ public class SchedulingService {
 
   private final SchedulingRepository schedulingRepository;
   private final SchedulingRules schedulingRules;
-  private final NextRunCalculator nextRunCalculator;
+  private final QuartzTriggerFactory triggerFactory;
   private final Clock clock;
+  private final ExecutionStore executionStore;
 
   public SchedulingService(
       SchedulingRepository schedulingRepository,
       SchedulingRules schedulingRules,
-      NextRunCalculator nextRunCalculator,
-      Clock clock) {
+      QuartzTriggerFactory triggerFactory,
+      Clock clock,
+      ExecutionStore executionStore) {
     this.schedulingRepository = schedulingRepository;
     this.schedulingRules = schedulingRules;
-    this.nextRunCalculator = nextRunCalculator;
+    this.triggerFactory = triggerFactory;
     this.clock = clock;
+    this.executionStore = executionStore;
   }
 
   public List<SchedulingResponse> list() {
@@ -46,24 +48,24 @@ public class SchedulingService {
   @Transactional
   public SchedulingResponse create(SchedulingRequest request) {
     schedulingRules.validate(request);
-    Instant now = now();
+    Instant now = clock.instant();
     Scheduling scheduling = new Scheduling();
     applyRequest(scheduling, request);
     scheduling.setCreatedAt(now);
     scheduling.setUpdatedAt(now);
-    scheduling.setNextRunAt(nextRunCalculator.next(request, now));
-    return SchedulingResponse.from(schedulingRepository.saveAndFlush(scheduling));
+    scheduling.setNextRunAt(triggerFactory.firstFireTime(request, now));
+    return saveAndRequestSync(scheduling, now);
   }
 
   @Transactional
   public SchedulingResponse replace(UUID id, SchedulingRequest request, Long expectedVersion) {
-    return update(findScheduling(id), request, expectedVersion);
+    return update(findForUpdate(id), request, expectedVersion);
   }
 
   @Transactional
   public SchedulingResponse patch(UUID id, Map<String, Object> patch, Long expectedVersion) {
     SchedulingRequest.validateWritableFields(patch);
-    Scheduling scheduling = findScheduling(id);
+    Scheduling scheduling = findForUpdate(id);
     Map<String, Object> mergedFields = SchedulingRequest.from(scheduling).toMap();
     mergedFields.putAll(patch);
     return update(scheduling, SchedulingRequest.parse(mergedFields), expectedVersion);
@@ -71,8 +73,10 @@ public class SchedulingService {
 
   @Transactional
   public void delete(UUID id, Long expectedVersion) {
-    Scheduling scheduling = findScheduling(id);
+    Scheduling scheduling = findForUpdate(id);
     checkExpectedVersion(scheduling, expectedVersion);
+    executionStore.cancelPending(id, clock.instant());
+    executionStore.requestSync(id, clock.instant());
     schedulingRepository.delete(scheduling);
     schedulingRepository.flush();
   }
@@ -82,22 +86,38 @@ public class SchedulingService {
     checkExpectedVersion(scheduling, expectedVersion);
     schedulingRules.validate(request);
     SchedulingRequest previousRequest = SchedulingRequest.from(scheduling);
-    boolean timingChanged = hasTimingChanged(previousRequest, request);
     applyRequest(scheduling, request);
-    Instant now = now();
+    Instant now = clock.instant();
+    updateProgress(scheduling, request, previousRequest, now);
+    return saveAndRequestSync(scheduling, now);
+  }
+
+  private void updateProgress(
+      Scheduling scheduling,
+      SchedulingRequest request,
+      SchedulingRequest previousRequest,
+      Instant now) {
+    boolean timingChanged = hasTimingChanged(previousRequest, request);
+    boolean generationChanged = timingChanged || previousRequest.enabled() != request.enabled();
+    if (generationChanged) {
+      scheduling.setGeneration(scheduling.getGeneration() + 1);
+      executionStore.cancelPending(scheduling.getId(), now);
+    }
     scheduling.setUpdatedAt(now);
     if (timingChanged) {
       scheduling.setDispatchedCount(0);
     }
-    if (!request.enabled()) {
-      scheduling.setNextRunAt(null);
-    } else if (request.maxOccurrences() != null
-        && scheduling.getDispatchedCount() >= request.maxOccurrences()) {
+    if (!request.enabled() || scheduling.isCompleted()) {
       scheduling.setNextRunAt(null);
     } else if (timingChanged || !previousRequest.enabled()) {
-      scheduling.setNextRunAt(nextRunCalculator.next(request, now));
+      scheduling.setNextRunAt(triggerFactory.firstFireTime(request, now));
     }
-    return SchedulingResponse.from(schedulingRepository.saveAndFlush(scheduling));
+  }
+
+  private SchedulingResponse saveAndRequestSync(Scheduling scheduling, Instant now) {
+    schedulingRepository.saveAndFlush(scheduling);
+    executionStore.requestSync(scheduling.getId(), now);
+    return SchedulingResponse.from(scheduling);
   }
 
   private static boolean hasTimingChanged(
@@ -124,8 +144,11 @@ public class SchedulingService {
             () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Scheduling not found"));
   }
 
-  private Instant now() {
-    return clock.instant().truncatedTo(ChronoUnit.MICROS);
+  private Scheduling findForUpdate(UUID id) {
+    return schedulingRepository
+        .findForUpdate(id)
+        .orElseThrow(
+            () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Scheduling not found"));
   }
 
   private static void applyRequest(Scheduling scheduling, SchedulingRequest request) {

@@ -61,6 +61,8 @@ public class SchedulingApiTests {
 
   @BeforeEach
   void setUp() {
+    jdbc.update("DELETE FROM task_executions");
+    jdbc.update("DELETE FROM scheduling_sync");
     repository.deleteAllInBatch();
     mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
   }
@@ -213,7 +215,7 @@ public class SchedulingApiTests {
   }
 
   @Test
-  void jsonAndMicrosecondTimestampsRoundTripAcrossSeparateTransactions() throws Exception {
+  void jsonAndMillisecondTimestampsRoundTripAcrossSeparateTransactions() throws Exception {
     Map<String, Object> input = valid();
     input.put("taskType", "DB_QUERY");
     input.put(
@@ -223,29 +225,29 @@ public class SchedulingApiTests {
             "dummy query",
             "parameters",
             Map.of("a", java.util.List.of(1, 2), "flag", true)));
-    input.put("startsAt", "2026-01-01T09:00:00.123456");
-    input.put("endsAt", "2026-01-02T09:00:00.654321Z");
+    input.put("startsAt", "2026-01-01T09:00:00.123");
+    input.put("endsAt", "2026-01-02T09:00:00.654Z");
     String path = location(create(input));
     assertEquals(
-        java.time.LocalDateTime.parse("2026-01-01T09:00:00.123456"),
+        java.time.LocalDateTime.parse("2026-01-01T09:00:00.123"),
         jdbc.queryForObject("SELECT starts_at FROM schedulings", java.time.LocalDateTime.class));
     assertEquals(
-        java.time.LocalDateTime.parse("2026-01-01T09:00:00.123456"),
+        java.time.LocalDateTime.parse("2026-01-01T09:00:00.123"),
         jdbc.queryForObject("SELECT next_run_at FROM schedulings", java.time.LocalDateTime.class));
     mvc.perform(get(path))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.payload.parameters.a[1]").value(2))
         .andExpect(jsonPath("$.payload.parameters.flag").value(true))
-        .andExpect(jsonPath("$.startsAt").value("2026-01-01T09:00:00.123456"))
-        .andExpect(jsonPath("$.nextRunAt").value("2026-01-01T09:00:00.123456Z"))
-        .andExpect(jsonPath("$.endsAt").value("2026-01-02T09:00:00.654321Z"));
+        .andExpect(jsonPath("$.startsAt").value("2026-01-01T09:00:00.123"))
+        .andExpect(jsonPath("$.nextRunAt").value("2026-01-01T09:00:00.123Z"))
+        .andExpect(jsonPath("$.endsAt").value("2026-01-02T09:00:00.654Z"));
   }
 
   @Test
   void metadataPreservesProgressAndTimingEditsResetIt() throws Exception {
     Map<String, Object> input = valid();
-    input.put("scheduleType", "RECURRING");
-    input.put("scheduleConfig", Map.of("frequency", "DAILY", "interval", 1));
+    input.put("scheduleType", "CALENDAR_INTERVAL");
+    input.put("scheduleConfig", Map.of("unit", "DAY", "interval", 1));
     input.put("maxOccurrences", 5);
     String path = location(create(input));
     UUID id = UUID.fromString(path.substring(path.lastIndexOf('/') + 1));
@@ -259,7 +261,7 @@ public class SchedulingApiTests {
     mvc.perform(
             patch(path)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"scheduleConfig\":{\"frequency\":\"DAILY\",\"interval\":2}}"))
+                .content("{\"scheduleConfig\":{\"unit\":\"DAY\",\"interval\":2}}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.dispatchedCount").value(0));
   }
@@ -311,8 +313,8 @@ public class SchedulingApiTests {
   void acceptsLargeYearlyIntervalWithNoSupportedNextRun() throws Exception {
     Map<String, Object> input = valid();
     input.put("startsAt", "2024-02-29T09:00:00");
-    input.put("scheduleType", "RECURRING");
-    input.put("scheduleConfig", Map.of("frequency", "YEARLY", "interval", Integer.MAX_VALUE));
+    input.put("scheduleType", "CALENDAR_INTERVAL");
+    input.put("scheduleConfig", Map.of("unit", "YEAR", "interval", Integer.MAX_VALUE));
     String path = location(create(input));
     mvc.perform(get(path))
         .andExpect(status().isOk())

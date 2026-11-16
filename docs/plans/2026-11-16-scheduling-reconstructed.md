@@ -1,5 +1,10 @@
 # Scheduling management and next-run calculation
 
+**Superseded scheduling contract:** the approved
+[Quartz execution plan](2026-11-16-quartz-execution.md) replaces custom recurrence
+and Spring cron with native Quartz triggers and adds RabbitMQ execution. This
+document remains a historical record of the initial phase.
+
 Reconstructed on 2026-11-16 from the working tree, backend README, and tests.
 The original conversation plan is unavailable. The user confirmed on this date
 that the approved phase covers scheduling CRUD and next-run calculation;

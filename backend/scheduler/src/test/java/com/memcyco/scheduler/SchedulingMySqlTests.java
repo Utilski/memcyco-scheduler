@@ -30,7 +30,7 @@ class SchedulingMySqlTests extends SchedulingApiTests {
   @Test
   void flywayMigrationAndDueIndexExist() {
     assertEquals(
-        1,
+        3,
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
     assertEquals(

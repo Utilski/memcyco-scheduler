@@ -86,7 +86,16 @@ public class Scheduling {
   @Column(name = "updated_at", nullable = false, columnDefinition = "DATETIME(6)")
   private Instant updatedAt;
 
+  @Column(name = "generation", nullable = false)
+  private long generation;
+
   @Version
   @Column(name = "version", nullable = false)
   private Long version;
+
+  /** Completion is independent of enabled state; toggling enabled does not reset progress. */
+  public boolean isCompleted() {
+    return (scheduleType == ScheduleType.ONE_TIME && dispatchedCount > 0)
+        || (maxOccurrences != null && dispatchedCount >= maxOccurrences);
+  }
 }

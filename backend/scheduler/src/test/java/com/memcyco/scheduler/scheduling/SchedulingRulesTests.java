@@ -93,24 +93,32 @@ class SchedulingRulesTests {
   }
 
   @Test
-  void validatesWeeklyRulesAndIntervalAndCount() {
+  void validatesNativeIntervalsAndCount() {
     Map<String, Object> input = valid();
-    input.put("scheduleType", "RECURRING");
+    input.put("scheduleType", "CALENDAR_INTERVAL");
     for (Object interval : List.of(0, -1, 1.5, "2", 2147483648L)) {
-      input.put("scheduleConfig", Map.of("frequency", "DAILY", "interval", interval));
+      input.put("scheduleConfig", Map.of("unit", "DAY", "interval", interval));
       assertThrows(IllegalArgumentException.class, () -> validate(input));
     }
-    for (List<String> days :
-        List.of(List.<String>of(), List.of("MONDAY", "MONDAY"), List.of("NO_DAY"))) {
-      input.put("scheduleConfig", Map.of("frequency", "WEEKLY", "interval", 1, "weekdays", days));
-      assertThrows(IllegalArgumentException.class, () -> validate(input));
-    }
-    input.put(
-        "scheduleConfig",
-        Map.of("frequency", "WEEKLY", "interval", 2, "weekdays", List.of("MONDAY")));
+    input.put("scheduleConfig", Map.of("unit", "DAY", "interval", 2));
     input.put("maxOccurrences", 3);
     validate(input);
     input.put("maxOccurrences", 0);
+    assertThrows(IllegalArgumentException.class, () -> validate(input));
+    input.remove("maxOccurrences");
+    input.put("scheduleType", "SIMPLE_INTERVAL");
+    assertThrows(IllegalArgumentException.class, () -> validate(input));
+    input.put("scheduleConfig", Map.of("unit", "SECONDS", "interval", 1));
+    validate(input);
+  }
+
+  @Test
+  void rejectsLegacyTypesAndSubMillisecondDates() {
+    Map<String, Object> input = valid();
+    input.put("scheduleType", "RECURRING");
+    assertThrows(IllegalArgumentException.class, () -> validate(input));
+    input.put("scheduleType", "ONE_TIME");
+    input.put("startsAt", "2026-01-01T09:00:00.000001");
     assertThrows(IllegalArgumentException.class, () -> validate(input));
   }
 
@@ -132,9 +140,9 @@ class SchedulingRulesTests {
       input.put("scheduleConfig", Map.of("expression", expression));
       assertThrows(IllegalArgumentException.class, () -> validate(input));
     }
-    input.put("scheduleConfig", Map.of("expression", "0 0 9 * * *"));
+    input.put("scheduleConfig", Map.of("expression", "0 0 9 * * ?"));
     validate(input);
-    input.put("scheduleConfig", Map.of("expression", "0 0 9 * * *", "weekdays", List.of("MONDAY")));
+    input.put("scheduleConfig", Map.of("expression", "0 0 9 * * ?", "weekdays", List.of("MONDAY")));
     assertThrows(IllegalArgumentException.class, () -> validate(input));
   }
 }

@@ -19,6 +19,8 @@ services:
       - gradle-cache:/root/.gradle
     environment:
       SPRING_DOCKER_COMPOSE_ENABLED: 'false'
+      SCHEDULER_ENABLED: '${SCHEDULER_ENABLED:-true}'
+      WORKER_ENABLED: '${WORKER_ENABLED:-true}'
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/mydatabase
       SPRING_DATASOURCE_USERNAME: myuser
       SPRING_DATASOURCE_PASSWORD: secret

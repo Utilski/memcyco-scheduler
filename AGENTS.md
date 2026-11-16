@@ -12,7 +12,10 @@
 - Distinguish reconstructed plans from original agreed plans. Do not claim a
   reconstruction preserves decisions that cannot be recovered.
 - Scheduling backend tests run from `backend/scheduler` with `./gradlew test`.
-  That task includes unit tests, H2 API tests, and Testcontainers MySQL tests.
+  That task includes native Quartz/unit tests, H2 API tests, MySQL API tests,
+  and MySQL/RabbitMQ execution integration tests. The current scheduling and
+  execution contract is in `backend/scheduler/README.md`; its approved plan is
+  `docs/plans/2026-11-16-quartz-execution.md`.
   Check skipped counts explicitly; a skipped MySQL suite does not verify MySQL.
 - Docker is installed via Snap. The `prometheus` account is already a member of
   the `docker` group, but a new agent session may lack that supplementary group.

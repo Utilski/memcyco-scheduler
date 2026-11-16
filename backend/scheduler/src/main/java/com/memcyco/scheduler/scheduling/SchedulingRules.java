@@ -3,26 +3,14 @@ package com.memcyco.scheduler.scheduling;
 import jakarta.validation.Validator;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import java.time.DayOfWeek;
 import java.time.ZoneId;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.scheduling.support.CronExpression;
+import org.quartz.CronExpression;
 import org.springframework.stereotype.Component;
 
 @Component
 public class SchedulingRules {
-
-  enum Frequency {
-    MINUTELY,
-    HOURLY,
-    DAILY,
-    WEEKLY,
-    MONTHLY,
-    YEARLY
-  }
 
   private final Validator validator;
 
@@ -44,9 +32,9 @@ public class SchedulingRules {
         || !ZoneId.getAvailableZoneIds().contains(request.timeZone())) {
       rejectInvalidRequest("timeZone must be an IANA time zone");
     }
-    if (request.startsAt().getNano() % 1000 != 0
-        || (request.endsAt() != null && request.endsAt().getNano() % 1000 != 0)) {
-      rejectInvalidRequest("Dates support at most microsecond precision");
+    if (request.startsAt().getNano() % 1000000 != 0
+        || (request.endsAt() != null && request.endsAt().getNano() % 1000000 != 0)) {
+      rejectInvalidRequest("Dates support at most millisecond precision");
     }
     if (request.startsAt().getYear() < 1000
         || request.startsAt().getYear() > 9999
@@ -56,8 +44,7 @@ public class SchedulingRules {
       rejectInvalidRequest("Dates must be within MySQL's supported years 1000 through 9999");
     }
     ZoneId timeZone = ZoneId.of(request.timeZone());
-    // atZone shifts a nonexistent start forward only for checking the end bound.
-    // Actual occurrences in a DST gap are skipped by the calculator.
+    // Local starts resolve using zone rules; subsequent DST handling belongs to Quartz.
     if (request.endsAt() != null
         && request.endsAt().isBefore(request.startsAt().atZone(timeZone).toInstant())) {
       rejectInvalidRequest("endsAt must not be before startsAt");
@@ -76,42 +63,24 @@ public class SchedulingRules {
       case CRON -> {
         validateAllowedFields(scheduleConfig, Set.of("expression"));
         String expression = SchedulingRequest.readText(scheduleConfig, "expression", true);
-        if (expression.trim().split("\\s+").length != 6) {
-          rejectInvalidRequest("Cron expressions must have six fields, including seconds");
+        if (!CronExpression.isValidExpression(expression)) {
+          rejectInvalidRequest("expression must be a valid Quartz cron expression");
         }
-        CronExpression.parse(expression);
       }
-      case RECURRING -> {
-        validateRecurringConfig(scheduleConfig);
-      }
-    }
-  }
-
-  private void validateRecurringConfig(Map<String, Object> scheduleConfig) {
-    Frequency frequency =
-        Frequency.valueOf(SchedulingRequest.readText(scheduleConfig, "frequency", true));
-    validateAllowedFields(
-        scheduleConfig,
-        frequency == Frequency.WEEKLY
-            ? Set.of("frequency", "interval", "weekdays")
-            : Set.of("frequency", "interval"));
-    long interval =
-        SchedulingRequest.readPositiveInteger(scheduleConfig.get("interval"), "interval");
-    if (interval > Integer.MAX_VALUE) {
-      rejectInvalidRequest("interval must not exceed 2147483647");
-    }
-    if (frequency == Frequency.WEEKLY) {
-      if (!(scheduleConfig.get("weekdays") instanceof List<?> weekdays) || weekdays.isEmpty()) {
-        rejectInvalidRequest("Weekly schedules require a nonempty weekdays array");
-      }
-      List<?> weekdays = (List<?>) scheduleConfig.get("weekdays");
-      Set<DayOfWeek> uniqueWeekdays = new HashSet<>();
-      for (Object day : weekdays) {
-        if (!(day instanceof String)) {
-          rejectInvalidRequest("weekdays must contain day names");
+      case SIMPLE_INTERVAL, CALENDAR_INTERVAL -> {
+        validateAllowedFields(scheduleConfig, Set.of("interval", "unit"));
+        long interval =
+            SchedulingRequest.readPositiveInteger(scheduleConfig.get("interval"), "interval");
+        if (interval > Integer.MAX_VALUE) {
+          rejectInvalidRequest("interval must not exceed 2147483647");
         }
-        if (!uniqueWeekdays.add(DayOfWeek.valueOf((String) day))) {
-          rejectInvalidRequest("weekdays must be unique");
+        String unit = SchedulingRequest.readText(scheduleConfig, "unit", true);
+        Set<String> allowedUnits =
+            request.scheduleType() == ScheduleType.SIMPLE_INTERVAL
+                ? Set.of("SECONDS", "MINUTES", "HOURS")
+                : Set.of("DAY", "WEEK", "MONTH", "YEAR");
+        if (!allowedUnits.contains(unit)) {
+          rejectInvalidRequest("Unsupported interval unit: " + unit);
         }
       }
     }
